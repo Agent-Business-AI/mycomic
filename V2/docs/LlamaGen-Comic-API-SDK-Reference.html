@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LlamaGen Comic API & SDK — Complete Reference</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; line-height: 1.6; color: #333; }
+    h1 { color: #1a1a1a; border-bottom: 2px solid #f59e0b; padding-bottom: 10px; }
+    h2 { color: #374151; margin-top: 32px; }
+    h3 { color: #4b5563; margin-top: 24px; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+    th, td { border: 1px solid #e5e7eb; padding: 10px 12px; text-align: left; }
+    th { background: #f9fafb; font-weight: 600; }
+    tr:nth-child(even) { background: #f9fafb; }
+    code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    pre { background: #1f2937; color: #e5e7eb; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+    .meta { color: #6b7280; font-size: 14px; margin-bottom: 24px; }
+    .toc { background: #f9fafb; padding: 20px; border-radius: 8px; margin: 24px 0; }
+    .toc a { color: #2563eb; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    .check { color: #059669; }
+    .cross { color: #dc2626; }
+    @media print { body { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <h1>LlamaGen Comic Public API & SDK — Complete Reference</h1>
+  <p class="meta">Document Version: 1.0 · Last Updated: March 2025 · Source: <a href="https://llamagen.ai/comic-api/docs">llamagen.ai/comic-api/docs</a></p>
+
+  <div class="toc">
+    <strong>Table of Contents</strong>
+    <ol>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#auth">Authentication</a></li>
+      <li><a href="#achieve">What You Can Achieve</a></li>
+      <li><a href="#endpoints">API Endpoints</a></li>
+      <li><a href="#params">Parameters & Options</a></li>
+      <li><a href="#limits">Limitations</a></li>
+      <li><a href="#rate">Rate Limits & Pricing</a></li>
+      <li><a href="#sdk">SDK Capabilities</a></li>
+      <li><a href="#prompt">Prompt Best Practices</a></li>
+      <li><a href="#errors">Error Handling</a></li>
+      <li><a href="#summary">Summary</a></li>
+    </ol>
+  </div>
+
+  <h2 id="overview">1. Overview</h2>
+  <p>The LlamaGen Comic API lets you integrate AI-powered comic generation into your applications. You send a prompt (and optional parameters), and the API returns generated comic panels.</p>
+  <p><strong>Base URL:</strong> <code>https://api.llamagen.ai/v1</code></p>
+
+  <h2 id="auth">2. Authentication</h2>
+  <table>
+    <tr><th>Type</th><td>HTTP Bearer Auth</td></tr>
+    <tr><th>Header</th><td><code>Authorization: Bearer YOUR_API_TOKEN</code></td></tr>
+    <tr><th>Get key</th><td><a href="https://llamagen.ai/settings?tab=api">llamagen.ai/settings?tab=api</a></td></tr>
+  </table>
+
+  <h2 id="achieve">3. What You Can Achieve</h2>
+  <h3>Comic Generation</h3>
+  <table>
+    <tr><th>Capability</th><th>Support</th></tr>
+    <tr><td>Text-to-comic</td><td class="check">✓ Full</td></tr>
+    <tr><td>Image-to-comic (via promptUrl)</td><td class="check">✓ Full</td></tr>
+    <tr><td>Panel count (1–20)</td><td class="check">✓ fixPanelNum</td></tr>
+    <tr><td>9 output sizes</td><td class="check">✓ size</td></tr>
+    <tr><td>Style preset</td><td class="check">✓ preset</td></tr>
+  </table>
+  <h3>Character Consistency</h3>
+  <table>
+    <tr><th>Capability</th><th>Support</th></tr>
+    <tr><td>comicRoles (name, age, gender, dress)</td><td class="check">✓</td></tr>
+    <tr><td>Reference image URL per character</td><td class="check">✓</td></tr>
+    <tr><td>File upload for characters</td><td class="check">✓</td></tr>
+  </table>
+
+  <h2 id="endpoints">4. API Endpoints</h2>
+  <table>
+    <tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td>/comics/generations</td><td>Create comic generation</td></tr>
+    <tr><td>GET</td><td>/comics/generations/:id</td><td>Get status/result</td></tr>
+    <tr><td>POST</td><td>/comics/upload</td><td>Upload reference image</td></tr>
+    <tr><td>GET</td><td>/comics/usage</td><td>Get usage/quota</td></tr>
+  </table>
+
+  <h2 id="params">5. Parameters & Options</h2>
+  <h3>Create Comic</h3>
+  <table>
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>prompt</td><td>Yes*</td><td>Story/script text</td></tr>
+    <tr><td>promptUrl</td><td>Yes*</td><td>Alternative: uploaded image URL</td></tr>
+    <tr><td>preset</td><td>No</td><td>render (default) or neutral</td></tr>
+    <tr><td>size</td><td>No</td><td>1024x1024, 512x768, etc.</td></tr>
+    <tr><td>fixPanelNum</td><td>No</td><td>1–20, default 4</td></tr>
+    <tr><td>comicRoles</td><td>No</td><td>Array of {name, age, gender, dress?, image?}</td></tr>
+  </table>
+  <p>*At least one of prompt or promptUrl required.</p>
+
+  <h3>Supported Sizes</h3>
+  <table>
+    <tr><th>Size</th><th>Ratio</th><th>Best For</th></tr>
+    <tr><td>1024x1024</td><td>1:1</td><td>Square, covers</td></tr>
+    <tr><td>512x768</td><td>2:3</td><td>Portrait</td></tr>
+    <tr><td>512x1024</td><td>1:2</td><td>Tall vertical</td></tr>
+    <tr><td>576x1024</td><td>9:16</td><td>Reels, stories</td></tr>
+    <tr><td>768x1024</td><td>3:4</td><td>Comic covers</td></tr>
+    <tr><td>1024x768</td><td>4:3</td><td>Landscape</td></tr>
+    <tr><td>768x512</td><td>3:2</td><td>Cinematic</td></tr>
+    <tr><td>1024x576</td><td>16:9</td><td>Widescreen</td></tr>
+    <tr><td>1024x512</td><td>2:1</td><td>Ultra-wide</td></tr>
+  </table>
+
+  <h2 id="limits">6. Limitations</h2>
+  <ul>
+    <li><strong>Single prompt per request</strong> — Per-panel control via structured prompt, not separate API calls</li>
+    <li><strong>Character limit</strong> — Creator/Pro: 3; Scale: unlimited</li>
+    <li><strong>Upload</strong> — Max 10 MB</li>
+    <li><strong>Video/Doc to comic</strong> — Pro+ only, not in public API docs</li>
+    <li><strong>No webhooks</strong> — Must poll for status</li>
+    <li><strong>No edit/regenerate</strong> — Cannot edit existing generation; create new</li>
+  </ul>
+
+  <h2 id="rate">7. Rate Limits</h2>
+  <table>
+    <tr><th>Plan</th><th>Limit</th></tr>
+    <tr><td>Demo (Free)</td><td>15/day, 4/min, watermarked</td></tr>
+    <tr><td>Paid</td><td>10/min, credit-based, no watermark</td></tr>
+  </table>
+
+  <h2 id="sdk">8. SDK Capabilities</h2>
+  <p><code>npm i comic</code></p>
+  <p>Methods: create, get, waitForCompletion, createAndWait, createBatch, waitForMany</p>
+  <p>MCP: create_comic_generation, get_comic_generation_status, get_api_usage</p>
+
+  <h2 id="prompt">9. Prompt Best Practices</h2>
+  <p>Use structured template: [Visual Style], [Story], [Characters], [Panels], [Constraints]. Keep panel objectives explicit; avoid mixing styles.</p>
+
+  <h2 id="errors">10. Error Handling</h2>
+  <table>
+    <tr><th>Code</th><th>Meaning</th></tr>
+    <tr><td>401</td><td>Invalid API token</td></tr>
+    <tr><td>402</td><td>Insufficient credits</td></tr>
+    <tr><td>403</td><td>Access denied</td></tr>
+    <tr><td>429</td><td>Rate limit exceeded</td></tr>
+    <tr><td>500</td><td>Internal error</td></tr>
+  </table>
+
+  <h2 id="summary">11. Summary</h2>
+  <p><strong class="check">✓ Supported:</strong> Text-to-comic, custom options, character consistency, reference upload, structured prompts, SDK, MCP</p>
+  <p><strong class="cross">✗ Not in public docs / plan-dependent:</strong> Per-panel API calls, video/doc input, 500+ styles (Pro+), webhooks</p>
+
+  <hr>
+  <p class="meta">Based on LlamaGen Comic API docs, March 2025. For latest: <a href="https://llamagen.ai/comic-api/docs">llamagen.ai/comic-api/docs</a></p>
+</body>
+</html>

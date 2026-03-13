@@ -1,0 +1,12 @@
+# Don't commit your LlamaGen session token
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
