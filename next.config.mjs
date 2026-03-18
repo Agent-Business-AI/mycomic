@@ -1,6 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+  serverExternalPackages: ["comic"],
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**.llamagen.ai",
+      },
+    ],
+  },
 };
 
 export default nextConfig;
