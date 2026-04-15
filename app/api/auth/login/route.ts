@@ -16,4 +16,4 @@ export async function POST(request: Request) {
     path: '/',
   })
   return response
-}
+} 
