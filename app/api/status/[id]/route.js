@@ -20,10 +20,14 @@ export async function GET(_request, { params }) {
           panels:
             comic.panels?.map((p, panelIdx) => ({
               assetUrl: p.assetUrl,
+              caption: p.caption || null,
               panelIdx,
             })) || [],
         })) || [],
-      panels: result.comics?.[0]?.panels?.map((p) => ({ assetUrl: p.assetUrl })) || [],
+      panels: result.comics?.[0]?.panels?.map((p) => ({
+        assetUrl: p.assetUrl,
+        caption: p.caption || null,
+      })) || [],
       createdAt: result.createdAt,
     });
   } catch (e) {

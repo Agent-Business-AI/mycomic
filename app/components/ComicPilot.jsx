@@ -945,18 +945,23 @@ function ContinueWriteDialog({ comicId, onClose, onDone }) {
 
 // ─── Panel Card ────────────────────────────────────────────────────────────────
 
-function PanelCard({ url, pageIdx, panelIdx, onRegen }) {
+function PanelCard({ url, caption, pageIdx, panelIdx, onRegen }) {
   return (
     <div className="group relative overflow-hidden rounded-xl border border-gray-700 bg-gray-800">
       {url ? (
         <img
           src={url}
           alt={`Page ${pageIdx + 1} Panel ${panelIdx + 1}`}
-          className="aspect-square w-full object-cover"
+          className="w-full"
         />
       ) : (
         <div className="flex aspect-square w-full items-center justify-center bg-gray-900 text-gray-600">
           No image
+        </div>
+      )}
+      {caption && (
+        <div className="border-t-2 border-gray-800 bg-white px-3 py-2 text-center text-xs font-medium leading-snug text-gray-900">
+          {caption}
         </div>
       )}
       <button
@@ -966,9 +971,6 @@ function PanelCard({ url, pageIdx, panelIdx, onRegen }) {
       >
         🔄
       </button>
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent py-1.5 text-center text-[10px] text-gray-300 opacity-0 transition-opacity group-hover:opacity-100">
-        Panel {panelIdx + 1}
-      </div>
     </div>
   );
 }
@@ -1021,6 +1023,7 @@ function GenerationView({ comicId, phase, error, allPages, elapsed, onReset, onR
                   <PanelCard
                     key={panel.panelIdx}
                     url={panel.assetUrl}
+                    caption={panel.caption}
                     pageIdx={page.pageIndex}
                     panelIdx={panel.panelIdx}
                     onRegen={(pi, pni) => setRegenTarget({ pageIdx: pi, panelIdx: pni })}
@@ -1187,7 +1190,11 @@ export default function ComicPilot() {
       return [
         {
           pageIndex: 0,
-          panels: prog.panels.map((p, i) => ({ ...p, panelIdx: i })),
+          panels: prog.panels.map((p, i) => ({
+            assetUrl: p.assetUrl,
+            caption: p.caption || null,
+            panelIdx: i,
+          })),
         },
       ];
     }
