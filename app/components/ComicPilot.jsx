@@ -3,8 +3,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
 const PRESETS = [
-  { id: "render", label: "Render (default)", icon: "🎨" },
-  { id: "neutral", label: "Neutral", icon: "📐" },
+  { id: "render", label: "3D Render Animation" },
+  { id: "animeFrame", label: "Anime Frame" },
+  { id: "comedyComicBook2", label: "Comedy Comic Book 2.0" },
+  { id: "japanese_manga", label: "Japanese Manga" },
+  { id: "comicBookStyle", label: "American Comic Style" },
+  { id: "american_comic_90", label: "1990s American Comics Style" },
 ];
 
 const SIZES = [
@@ -17,6 +21,15 @@ const SIZES = [
   { id: "768x512", label: "3:2 (768×512)", desc: "Cinematic" },
   { id: "1024x576", label: "16:9 (1024×576)", desc: "Widescreen" },
   { id: "1024x512", label: "2:1 (1024×512)", desc: "Ultra-wide" },
+];
+
+const LANGUAGES = [
+  { id: "", label: "None (auto)" },
+  { id: "English", label: "English" },
+  { id: "Hochdeutsch", label: "Hochdeutsch" },
+  { id: "Bayerisch", label: "Bayerisch" },
+  { id: "Wienerisch", label: "Wienerisch" },
+  { id: "Schweizerdeutsch", label: "Schweizerdeutsch" },
 ];
 
 const GENDERS = ["male", "female"];
@@ -94,16 +107,23 @@ const api = {
     if (!r.ok) return null;
     return r.json();
   },
+  async patch(id, payload) {
+    const r = await fetch(`/api/patch/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || `Patch failed: ${r.status}`);
+    }
+    return r.json();
+  },
 };
 
-function CharacterCard({
-  character: c,
-  onUpdate,
-  onRemove,
-  isExpanded,
-  onToggle,
-  isUploading,
-}) {
+// ─── Sub-components ────────────────────────────────────────────────────────────
+
+function CharacterCard({ character: c, onUpdate, onRemove, isExpanded, onToggle, isUploading }) {
   const update = (f, v) => onUpdate({ ...c, [f]: v });
   return (
     <div className="overflow-hidden rounded-xl border border-gray-700 bg-gray-800/80">
@@ -196,9 +216,7 @@ function CharacterCard({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-400">
-              Or upload file
-            </label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-400">Or upload file</label>
             <div className="flex items-start gap-3">
               {c.imagePreview ? (
                 <div className="group relative">
@@ -271,9 +289,7 @@ function PanelPromptCard({ panel, index, onUpdate, onRemove }) {
       </div>
       <div className="space-y-3 border-t border-gray-700 p-4">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-400">
-            Panel objective
-          </label>
+          <label className="mb-1 block text-xs font-medium text-gray-400">Panel objective</label>
           <input
             type="text"
             value={panel.panelObjective || ""}
@@ -283,9 +299,7 @@ function PanelPromptCard({ panel, index, onUpdate, onRemove }) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-400">
-            Scene description
-          </label>
+          <label className="mb-1 block text-xs font-medium text-gray-400">Scene description</label>
           <input
             type="text"
             value={panel.sceneDescription || ""}
@@ -295,9 +309,7 @@ function PanelPromptCard({ panel, index, onUpdate, onRemove }) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-400">
-            Character action
-          </label>
+          <label className="mb-1 block text-xs font-medium text-gray-400">Character action</label>
           <input
             type="text"
             value={panel.characterAction || ""}
@@ -323,21 +335,659 @@ function PanelPromptCard({ panel, index, onUpdate, onRemove }) {
   );
 }
 
-function GenerationView({ comicId, phase, progress, error, panels, elapsed, onReset }) {
-  if (phase === "done" && (panels?.length > 0 || progress?.output)) {
-    const urls =
-      panels?.length > 0
-        ? panels.map((p) => p.assetUrl).filter(Boolean)
-        : progress?.output
-          ? [progress.output]
-          : [];
+function LocationCard({ location: loc, onUpdate, onRemove, isUploading }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-gray-700 bg-gray-800/80 p-3">
+      {loc.imagePreview ? (
+        <div className="group relative shrink-0">
+          <img
+            src={loc.imagePreview}
+            alt=""
+            className="h-16 w-16 rounded-lg border border-gray-600 object-cover"
+          />
+          <button
+            onClick={() =>
+              onUpdate({ ...loc, imagePreview: null, imageFile: null, imageUrl: "" })
+            }
+            className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100"
+          >
+            ✕
+          </button>
+          {loc.imageUrl && (
+            <div className="absolute bottom-0 left-0 right-0 rounded-b-lg bg-green-600/80 py-0.5 text-center text-[9px] text-white">
+              ✓
+            </div>
+          )}
+        </div>
+      ) : (
+        <label className="flex h-16 w-16 shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-600 text-gray-500 transition-colors hover:border-amber-500 hover:text-amber-500">
+          <span className="text-lg">🗺️</span>
+          <span className="mt-0.5 text-[9px]">Upload</span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f)
+                onUpdate({
+                  ...loc,
+                  imageFile: f,
+                  imagePreview: URL.createObjectURL(f),
+                  imageUrl: "",
+                });
+            }}
+          />
+        </label>
+      )}
+      <div className="min-w-0 flex-1 space-y-2">
+        <input
+          type="text"
+          value={loc.name}
+          onChange={(e) => onUpdate({ ...loc, name: e.target.value })}
+          placeholder="Location name, e.g. Rainy Alley"
+          className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
+        />
+        {isUploading && (
+          <span className="animate-pulse text-xs text-amber-400">Uploading...</span>
+        )}
+      </div>
+      <button
+        onClick={onRemove}
+        className="mt-1 shrink-0 text-xs text-red-400 hover:text-red-300"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+function AttachmentItem({ attachment: att, onUpdate, onRemove, isUploading }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-gray-700 bg-gray-800/80 p-3">
+      <div className="min-w-0 flex-1 space-y-2">
+        <input
+          type="text"
+          value={att.title}
+          onChange={(e) => onUpdate({ ...att, title: e.target.value })}
+          placeholder="Title, e.g. Style Reference"
+          className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
+        />
+        {att.file ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate text-xs text-gray-400">{att.file.name}</span>
+            {att.url && <span className="text-xs text-green-400">✓ uploaded</span>}
+            {isUploading && (
+              <span className="animate-pulse text-xs text-amber-400">Uploading...</span>
+            )}
+            <button
+              onClick={() => onUpdate({ ...att, file: null, url: "" })}
+              className="text-xs text-red-400 hover:text-red-300"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500 hover:text-amber-400">
+            <span>📎</span>
+            <span>Choose file</span>
+            <input
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onUpdate({ ...att, file: f, url: "" });
+              }}
+            />
+          </label>
+        )}
+      </div>
+      <button onClick={onRemove} className="shrink-0 text-xs text-red-400 hover:text-red-300">
+        ✕
+      </button>
+    </div>
+  );
+}
+
+function ImageUploadList({ images, onChange, disabled }) {
+  const addFiles = (files) => {
+    const next = [
+      ...images,
+      ...Array.from(files).map((f) => ({
+        id: uid("img"),
+        file: f,
+        preview: URL.createObjectURL(f),
+        url: "",
+      })),
+    ];
+    onChange(next);
+  };
+  const remove = (id) => onChange(images.filter((i) => i.id !== id));
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {images.map((img) => (
+        <div key={img.id} className="group relative">
+          <img
+            src={img.preview}
+            alt=""
+            className="h-16 w-16 rounded-lg border border-gray-600 object-cover"
+          />
+          {img.url && (
+            <div className="absolute bottom-0 left-0 right-0 rounded-b-lg bg-green-600/80 py-0.5 text-center text-[9px] text-white">
+              ✓
+            </div>
+          )}
+          <button
+            onClick={() => remove(img.id)}
+            disabled={disabled}
+            className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-50"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <label className="flex h-16 w-16 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-600 text-gray-500 hover:border-amber-500 hover:text-amber-500">
+        <span className="text-xl">+</span>
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          disabled={disabled}
+          onChange={(e) => {
+            if (e.target.files?.length) addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+      </label>
+    </div>
+  );
+}
+
+// ─── Regen Dialog ──────────────────────────────────────────────────────────────
+
+function RegenerateDialog({ comicId, pageIdx, panelIdx, onClose, onDone }) {
+  const [prompt, setPrompt] = useState("");
+  const [images, setImages] = useState([]);
+  const [caption, setCaption] = useState("");
+  const [phase, setPhase] = useState("idle");
+  const [error, setError] = useState("");
+  const pollRef = useRef(null);
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  const handleSubmit = async () => {
+    try {
+      setPhase("uploading");
+      setError("");
+
+      const uploadedImages = [...images];
+      for (let i = 0; i < uploadedImages.length; i++) {
+        if (!uploadedImages[i].url && uploadedImages[i].file) {
+          const url = await api.upload(uploadedImages[i].file);
+          uploadedImages[i] = { ...uploadedImages[i], url };
+        }
+      }
+      setImages(uploadedImages);
+      const imageUrls = uploadedImages.map((i) => i.url).filter(Boolean);
+
+      setPhase("patching");
+      const patchPayload = {
+        page: pageIdx,
+        panel: panelIdx,
+        ...(prompt ? { prompt } : {}),
+        ...(imageUrls.length ? { images: imageUrls } : {}),
+        ...(caption ? { caption } : {}),
+      };
+      await api.patch(comicId, patchPayload);
+
+      setPhase("polling");
+      pollRef.current = setInterval(async () => {
+        try {
+          const status = await api.getStatus(comicId);
+          if (["SUCCEEDED", "PROCESSED", "COMPLETED"].includes(status?.status)) {
+            clearInterval(pollRef.current);
+            setPhase("done");
+            onDone(status);
+          } else if (status?.status === "FAILED") {
+            clearInterval(pollRef.current);
+            setError("Regeneration failed");
+            setPhase("error");
+          }
+        } catch (e) {
+          console.error("Regen poll:", e);
+        }
+      }, 5000);
+    } catch (e) {
+      setError(e.message || "Failed");
+      setPhase("error");
+    }
+  };
+
+  const busy = ["uploading", "patching", "polling"].includes(phase);
+  const canSubmit = !busy && (!!prompt || images.length > 0 || !!caption);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-gray-700 bg-gray-900 p-6 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-bold text-white">
+            Regenerate Panel {panelIdx + 1}
+            {pageIdx > 0 ? ` · Page ${pageIdx + 1}` : ""}
+          </h3>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="text-gray-500 hover:text-white disabled:opacity-30"
+          >
+            ✕
+          </button>
+        </div>
+
+        {phase === "done" ? (
+          <div className="py-8 text-center">
+            <div className="mb-2 text-4xl">✅</div>
+            <p className="text-green-400">Panel regenerated!</p>
+            <button
+              onClick={onClose}
+              className="mt-4 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-amber-400"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {error && (
+              <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>
+            )}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-400">
+                New prompt (optional)
+              </label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Describe what to change in this panel"
+                rows={3}
+                disabled={busy}
+                className="w-full resize-none rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none disabled:opacity-50"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-400">
+                Reference images (optional, multiple)
+              </label>
+              <ImageUploadList images={images} onChange={setImages} disabled={busy} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-400">
+                Caption (optional)
+              </label>
+              <input
+                type="text"
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                placeholder='"Come on, we have to hurry!"'
+                disabled={busy}
+                className="w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none disabled:opacity-50"
+              />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={onClose}
+                disabled={busy}
+                className="flex-1 rounded-lg border border-gray-700 py-2 text-sm text-gray-300 hover:bg-gray-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+                className="flex-1 rounded-lg bg-amber-500 py-2 text-sm font-medium text-gray-900 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busy ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-900 border-t-transparent" />
+                    {phase === "uploading"
+                      ? "Uploading..."
+                      : phase === "patching"
+                        ? "Sending..."
+                        : "Waiting..."}
+                  </span>
+                ) : (
+                  "Regenerate"
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Continue Write Dialog ─────────────────────────────────────────────────────
+
+function ContinueWriteDialog({ comicId, onClose, onDone }) {
+  const [prompt, setCPrompt] = useState("");
+  const [paginationMode, setPaginationMode] = useState(false);
+  const [pagination, setPagination] = useState({ totalPages: 1, panelsPerPage: 4 });
+  const [fixPanelNum, setFixPanelNum] = useState(4);
+  const [attachments, setAttachments] = useState([]);
+  const [uploadingAtts, setUploadingAtts] = useState(new Set());
+  const [phase, setPhase] = useState("idle");
+  const [error, setError] = useState("");
+  const pollRef = useRef(null);
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  const handleSubmit = async () => {
+    if (!prompt.trim()) {
+      setError("Enter a prompt for the next part");
+      return;
+    }
+    try {
+      setPhase("uploading");
+      setError("");
+
+      const updatedAtts = [...attachments];
+      for (let i = 0; i < updatedAtts.length; i++) {
+        const att = updatedAtts[i];
+        if (att.file && !att.url) {
+          setUploadingAtts((p) => new Set([...p, att.id]));
+          const url = await api.upload(att.file);
+          updatedAtts[i] = { ...att, url };
+          setUploadingAtts((p) => {
+            const n = new Set(p);
+            n.delete(att.id);
+            return n;
+          });
+        }
+      }
+      setAttachments(updatedAtts);
+      const attPayload = updatedAtts
+        .filter((a) => a.url && a.title)
+        .map((a) => ({ url: a.url, title: a.title }));
+
+      setPhase("patching");
+      const patchPayload = {
+        action: "continueWrite",
+        prompt,
+        ...(paginationMode ? { pagination } : { fixPanelNum }),
+        ...(attPayload.length ? { attachments: attPayload } : {}),
+      };
+      await api.patch(comicId, patchPayload);
+
+      setPhase("polling");
+      pollRef.current = setInterval(async () => {
+        try {
+          const status = await api.getStatus(comicId);
+          if (["SUCCEEDED", "PROCESSED", "COMPLETED"].includes(status?.status)) {
+            clearInterval(pollRef.current);
+            setPhase("done");
+            onDone(status);
+          } else if (status?.status === "FAILED") {
+            clearInterval(pollRef.current);
+            setError("Generation failed");
+            setPhase("error");
+          }
+        } catch (e) {
+          console.error("Continue poll:", e);
+        }
+      }, 5000);
+    } catch (e) {
+      setError(e.message || "Failed");
+      setPhase("error");
+    }
+  };
+
+  const busy = ["uploading", "patching", "polling"].includes(phase);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-700 bg-gray-900 p-6 shadow-2xl" style={{ maxHeight: "90vh" }}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-bold text-white">Generate Next Part</h3>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="text-gray-500 hover:text-white disabled:opacity-30"
+          >
+            ✕
+          </button>
+        </div>
+
+        {phase === "done" ? (
+          <div className="py-8 text-center">
+            <div className="mb-2 text-4xl">✅</div>
+            <p className="text-green-400">Next part generated!</p>
+            <button
+              onClick={onClose}
+              className="mt-4 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-amber-400"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {error && (
+              <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>
+            )}
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-400">
+                Continuation prompt *
+              </label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setCPrompt(e.target.value)}
+                placeholder="What happens next in the story?"
+                rows={4}
+                disabled={busy}
+                className="w-full resize-none rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none disabled:opacity-50"
+              />
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center gap-3">
+                <span className="text-xs font-medium text-gray-400">Panel count mode</span>
+                <div className="flex overflow-hidden rounded-lg border border-gray-700 text-xs">
+                  <button
+                    onClick={() => setPaginationMode(false)}
+                    disabled={busy}
+                    className={`px-3 py-1.5 transition-colors ${
+                      !paginationMode
+                        ? "bg-amber-500/20 text-amber-400"
+                        : "text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    Fixed
+                  </button>
+                  <button
+                    onClick={() => setPaginationMode(true)}
+                    disabled={busy}
+                    className={`px-3 py-1.5 transition-colors ${
+                      paginationMode
+                        ? "bg-amber-500/20 text-amber-400"
+                        : "text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    Pagination
+                  </button>
+                </div>
+              </div>
+              {paginationMode ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs text-gray-500">Total pages</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={pagination.totalPages}
+                      onChange={(e) =>
+                        setPagination((p) => ({
+                          ...p,
+                          totalPages: Math.max(1, parseInt(e.target.value) || 1),
+                        }))
+                      }
+                      disabled={busy}
+                      className="w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-gray-500">Panels per page</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={pagination.panelsPerPage}
+                      onChange={(e) =>
+                        setPagination((p) => ({
+                          ...p,
+                          panelsPerPage: Math.min(20, Math.max(1, parseInt(e.target.value) || 4)),
+                        }))
+                      }
+                      disabled={busy}
+                      className="w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">Panels (1–20)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={fixPanelNum}
+                    onChange={(e) =>
+                      setFixPanelNum(Math.min(20, Math.max(1, parseInt(e.target.value) || 4)))
+                    }
+                    disabled={busy}
+                    className="w-24 rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none disabled:opacity-50"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="text-xs font-medium text-gray-400">
+                  Attachments (optional)
+                </label>
+                <button
+                  onClick={() =>
+                    setAttachments((p) => [
+                      ...p,
+                      { id: uid("att"), title: "", file: null, url: "" },
+                    ])
+                  }
+                  disabled={busy}
+                  className="text-xs text-amber-400 hover:text-amber-300 disabled:opacity-50"
+                >
+                  + Add
+                </button>
+              </div>
+              {attachments.length > 0 && (
+                <div className="space-y-2">
+                  {attachments.map((att) => (
+                    <AttachmentItem
+                      key={att.id}
+                      attachment={att}
+                      isUploading={uploadingAtts.has(att.id)}
+                      onUpdate={(u) =>
+                        setAttachments((p) => p.map((x) => (x.id === u.id ? u : x)))
+                      }
+                      onRemove={() =>
+                        setAttachments((p) => p.filter((x) => x.id !== att.id))
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={onClose}
+                disabled={busy}
+                className="flex-1 rounded-lg border border-gray-700 py-2 text-sm text-gray-300 hover:bg-gray-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={busy || !prompt.trim()}
+                className="flex-1 rounded-lg bg-amber-500 py-2 text-sm font-medium text-gray-900 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busy ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-900 border-t-transparent" />
+                    {phase === "uploading"
+                      ? "Uploading..."
+                      : phase === "patching"
+                        ? "Sending..."
+                        : "Generating..."}
+                  </span>
+                ) : (
+                  "Generate Next Part"
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Panel Card ────────────────────────────────────────────────────────────────
+
+function PanelCard({ url, pageIdx, panelIdx, onRegen }) {
+  return (
+    <div className="group relative overflow-hidden rounded-xl border border-gray-700 bg-gray-800">
+      {url ? (
+        <img
+          src={url}
+          alt={`Page ${pageIdx + 1} Panel ${panelIdx + 1}`}
+          className="aspect-square w-full object-cover"
+        />
+      ) : (
+        <div className="flex aspect-square w-full items-center justify-center bg-gray-900 text-gray-600">
+          No image
+        </div>
+      )}
+      <button
+        onClick={() => onRegen(pageIdx, panelIdx)}
+        title="Regenerate panel"
+        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-sm text-white opacity-0 shadow-lg transition-opacity hover:bg-black/80 group-hover:opacity-100"
+      >
+        🔄
+      </button>
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent py-1.5 text-center text-[10px] text-gray-300 opacity-0 transition-opacity group-hover:opacity-100">
+        Panel {panelIdx + 1}
+      </div>
+    </div>
+  );
+}
+
+// ─── Generation View ───────────────────────────────────────────────────────────
+
+function GenerationView({ comicId, phase, error, allPages, elapsed, onReset, onRegenDone, onContinueDone }) {
+  const [regenTarget, setRegenTarget] = useState(null);
+  const [showContinue, setShowContinue] = useState(false);
+
+  if (phase === "done" && allPages.length > 0) {
+    const totalPanels = allPages.reduce((s, p) => s + p.panels.length, 0);
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-green-400">Comic Generated!</h2>
             <p className="text-xs text-gray-500">
-              {urls.length} panel(s) · {elapsed}s · ID:{" "}
+              {allPages.length} page(s) · {totalPanels} panels · {elapsed}s · ID:{" "}
               <code className="text-amber-400">{comicId}</code>
             </p>
           </div>
@@ -348,32 +998,71 @@ function GenerationView({ comicId, phase, progress, error, panels, elapsed, onRe
             ← New Comic
           </button>
         </div>
-        <div
-          className="grid gap-4"
-          style={{
-            gridTemplateColumns:
-              urls.length <= 4 ? "repeat(2,1fr)" : "repeat(3,1fr)",
-          }}
-        >
-          {urls.map((url, i) => (
-            <div
-              key={i}
-              className="overflow-hidden rounded-xl border border-gray-700 bg-gray-800"
-            >
-              {url ? (
-                <img
-                  src={url}
-                  alt={`Panel ${i + 1}`}
-                  className="aspect-square w-full object-cover"
-                />
-              ) : (
-                <div className="flex aspect-square w-full items-center justify-center bg-gray-900 text-gray-600">
-                  No image
-                </div>
+
+        <div className="space-y-8">
+          {allPages.map((page) => (
+            <div key={page.pageIndex}>
+              {allPages.length > 1 && (
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-300">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-xs text-amber-400">
+                    {page.pageIndex + 1}
+                  </span>
+                  Page {page.pageIndex + 1}
+                </h3>
               )}
+              <div
+                className="grid gap-4"
+                style={{
+                  gridTemplateColumns:
+                    page.panels.length <= 4 ? "repeat(2,1fr)" : "repeat(3,1fr)",
+                }}
+              >
+                {page.panels.map((panel) => (
+                  <PanelCard
+                    key={panel.panelIdx}
+                    url={panel.assetUrl}
+                    pageIdx={page.pageIndex}
+                    panelIdx={panel.panelIdx}
+                    onRegen={(pi, pni) => setRegenTarget({ pageIdx: pi, panelIdx: pni })}
+                  />
+                ))}
+              </div>
             </div>
           ))}
         </div>
+
+        <div className="flex justify-center pt-2">
+          <button
+            onClick={() => setShowContinue(true)}
+            className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-3 text-sm font-bold text-gray-900 shadow-lg shadow-amber-500/20 transition-all hover:from-amber-400 hover:to-orange-400"
+          >
+            ✨ Generate Next Part
+          </button>
+        </div>
+
+        {regenTarget && (
+          <RegenerateDialog
+            comicId={comicId}
+            pageIdx={regenTarget.pageIdx}
+            panelIdx={regenTarget.panelIdx}
+            onClose={() => setRegenTarget(null)}
+            onDone={(status) => {
+              setRegenTarget(null);
+              onRegenDone(status);
+            }}
+          />
+        )}
+
+        {showContinue && (
+          <ContinueWriteDialog
+            comicId={comicId}
+            onClose={() => setShowContinue(false)}
+            onDone={(status) => {
+              setShowContinue(false);
+              onContinueDone(status);
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -414,6 +1103,35 @@ function GenerationView({ comicId, phase, progress, error, panels, elapsed, onRe
   );
 }
 
+// ─── Pagination Mode Toggle ────────────────────────────────────────────────────
+
+function PaginationToggle({ paginationMode, onToggle, disabled }) {
+  return (
+    <div className="flex overflow-hidden rounded-lg border border-gray-700 text-xs">
+      <button
+        onClick={() => onToggle(false)}
+        disabled={disabled}
+        className={`px-3 py-1.5 transition-colors ${
+          !paginationMode ? "bg-amber-500/20 text-amber-400" : "text-gray-400 hover:text-white"
+        }`}
+      >
+        Fixed panels
+      </button>
+      <button
+        onClick={() => onToggle(true)}
+        disabled={disabled}
+        className={`px-3 py-1.5 transition-colors ${
+          paginationMode ? "bg-amber-500/20 text-amber-400" : "text-gray-400 hover:text-white"
+        }`}
+      >
+        Pagination
+      </button>
+    </div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
+
 export default function ComicPilot() {
   const [useCase, setUseCase] = useState(1);
   const [prompt, setPrompt] = useState("");
@@ -426,9 +1144,17 @@ export default function ComicPilot() {
   const [panelPrompts, setPanelPrompts] = useState([]);
   const [preset, setPreset] = useState("render");
   const [size, setSize] = useState("1024x1024");
+  const [paginationMode, setPaginationMode] = useState(false);
   const [fixPanelNum, setFixPanelNum] = useState(4);
+  const [pagination, setPagination] = useState({ totalPages: 2, panelsPerPage: 4 });
+  const [language, setLanguage] = useState("English");
+  const [upscale, setUpscale] = useState("");
   const [characters, setCharacters] = useState([]);
   const [expandedChar, setExpandedChar] = useState(null);
+  const [locations, setLocations] = useState([]);
+  const [uploadingLocs, setUploadingLocs] = useState(new Set());
+  const [attachments, setAttachments] = useState([]);
+  const [uploadingAtts, setUploadingAtts] = useState(new Set());
   const [activeTab, setActiveTab] = useState("prompt");
   const [genPhase, setGenPhase] = useState("idle");
   const [comicId, setComicId] = useState(null);
@@ -437,6 +1163,7 @@ export default function ComicPilot() {
   const [elapsed, setElapsed] = useState(0);
   const [uploadingChars, setUploadingChars] = useState(new Set());
   const [backendOk, setBackendOk] = useState(null);
+  const [allPages, setAllPages] = useState([]);
 
   const pollRef = useRef(null);
   const startRef = useRef(null);
@@ -454,6 +1181,19 @@ export default function ComicPilot() {
     };
   }, []);
 
+  const statusToPages = (prog) => {
+    if (prog?.pages?.length > 0) return prog.pages;
+    if (prog?.panels?.length > 0) {
+      return [
+        {
+          pageIndex: 0,
+          panels: prog.panels.map((p, i) => ({ ...p, panelIdx: i })),
+        },
+      ];
+    }
+    return [];
+  };
+
   const startPolling = useCallback((id) => {
     startRef.current = Date.now();
     setGenPhase("polling");
@@ -461,13 +1201,10 @@ export default function ComicPilot() {
       try {
         setElapsed(Math.round((Date.now() - startRef.current) / 1000));
         const prog = await api.getStatus(id);
-        if (
-          prog?.status === "SUCCEEDED" ||
-          prog?.status === "PROCESSED" ||
-          prog?.status === "COMPLETED"
-        ) {
+        if (["SUCCEEDED", "PROCESSED", "COMPLETED"].includes(prog?.status)) {
           clearInterval(pollRef.current);
           setResult(prog);
+          setAllPages(statusToPages(prog));
           setGenPhase("done");
         } else if (prog?.status === "FAILED") {
           clearInterval(pollRef.current);
@@ -508,7 +1245,9 @@ export default function ComicPilot() {
       setResult(null);
       setGenError(null);
       setElapsed(0);
+      setAllPages([]);
 
+      // Upload character images
       const comicRoles = [];
       const updatedChars = [...characters];
       for (let i = 0; i < updatedChars.length; i++) {
@@ -529,33 +1268,83 @@ export default function ComicPilot() {
             return n;
           });
         }
-        if (updatedChars[i].imageUrl) {
-          comicRoles.push({
-            name: updatedChars[i].name,
-            age: updatedChars[i].age || 25,
-            gender: updatedChars[i].gender || "female",
-            dress: updatedChars[i].dress || undefined,
-            image: updatedChars[i].imageUrl,
-          });
-        } else {
-          comicRoles.push({
-            name: updatedChars[i].name,
-            age: updatedChars[i].age || 25,
-            gender: updatedChars[i].gender || "female",
-            dress: updatedChars[i].dress || undefined,
+        comicRoles.push({
+          name: updatedChars[i].name,
+          age: updatedChars[i].age || 25,
+          gender: updatedChars[i].gender || "female",
+          dress: updatedChars[i].dress || undefined,
+          image: updatedChars[i].imageUrl || undefined,
+        });
+      }
+      setCharacters(updatedChars);
+
+      // Upload location images
+      const updatedLocs = [...locations];
+      for (let i = 0; i < updatedLocs.length; i++) {
+        const loc = updatedLocs[i];
+        if (!loc.name) continue;
+        if (loc.imageFile && !loc.imageUrl) {
+          setUploadingLocs((p) => new Set([...p, loc.id]));
+          try {
+            const url = await api.upload(loc.imageFile);
+            updatedLocs[i] = { ...loc, imageUrl: url };
+          } catch (e) {
+            console.warn(`Upload failed for location ${loc.name}:`, e);
+          }
+          setUploadingLocs((p) => {
+            const n = new Set(p);
+            n.delete(loc.id);
+            return n;
           });
         }
       }
-      setCharacters(updatedChars);
+      setLocations(updatedLocs);
+      const comicLocations = updatedLocs
+        .filter((l) => l.name)
+        .map((l) => ({ name: l.name, image: l.imageUrl || undefined }));
+
+      // Upload attachments
+      const updatedAtts = [...attachments];
+      for (let i = 0; i < updatedAtts.length; i++) {
+        const att = updatedAtts[i];
+        if (att.file && !att.url) {
+          setUploadingAtts((p) => new Set([...p, att.id]));
+          try {
+            const url = await api.upload(att.file);
+            updatedAtts[i] = { ...att, url };
+          } catch (e) {
+            console.warn(`Upload failed for attachment ${att.title}:`, e);
+          }
+          setUploadingAtts((p) => {
+            const n = new Set(p);
+            n.delete(att.id);
+            return n;
+          });
+        }
+      }
+      setAttachments(updatedAtts);
+      const attPayload = updatedAtts
+        .filter((a) => a.url && a.title)
+        .map((a) => ({ url: a.url, title: a.title }));
 
       setGenPhase("generating");
       const payload = {
         prompt: finalPrompt,
         preset: useCase >= 2 ? preset : "render",
         size: useCase >= 2 ? size : "1024x1024",
-        fixPanelNum: useCase >= 2 ? fixPanelNum : 4,
         comicRoles: useCase >= 3 ? comicRoles : [],
+        comicLocations: comicLocations.length > 0 ? comicLocations : undefined,
+        attachments: attPayload.length > 0 ? attPayload : undefined,
+        language: language || undefined,
+        upscale: upscale || undefined,
       };
+
+      if (useCase >= 2 && paginationMode) {
+        payload.pagination = pagination;
+      } else {
+        payload.fixPanelNum = useCase >= 2 ? fixPanelNum : 4;
+      }
+
       const created = await api.generate(payload);
       if (!created.comicId) throw new Error("No comic ID returned");
       setComicId(created.comicId);
@@ -573,6 +1362,7 @@ export default function ComicPilot() {
     setResult(null);
     setGenError(null);
     setElapsed(0);
+    setAllPages([]);
     setActiveTab("prompt");
   };
 
@@ -629,11 +1419,7 @@ export default function ComicPilot() {
       ? [
           {
             id: "result",
-            label: isGenerating
-              ? "Generating..."
-              : genPhase === "done"
-                ? "Result"
-                : "Error",
+            label: isGenerating ? "Generating..." : genPhase === "done" ? "Result" : "Error",
             icon: genPhase === "done" ? "✅" : genPhase === "error" ? "❌" : "⏳",
           },
         ]
@@ -733,6 +1519,7 @@ export default function ComicPilot() {
       </nav>
 
       <main className="mx-auto max-w-4xl px-4 py-6">
+        {/* ── Prompt tab ── */}
         {activeTab === "prompt" && (
           <div className="space-y-6">
             <div>
@@ -815,8 +1602,8 @@ export default function ComicPilot() {
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Panels are added in the Panels tab. Per-panel prompts are merged into the
-                  final prompt.
+                  Panels are added in the Panels tab. Per-panel prompts are merged into the final
+                  prompt.
                 </p>
               </div>
             ) : (
@@ -832,36 +1619,36 @@ export default function ComicPilot() {
                   className="w-full resize-none rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 font-mono text-xs text-white focus:border-amber-500 focus:outline-none"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Use the recommended template structure for best results. See docs for
-                  [Visual Style], [Story], [Characters], [Panels], [Constraints].
+                  Use the recommended template structure for best results. See docs for [Visual
+                  Style], [Story], [Characters], [Panels], [Constraints].
                 </p>
               </div>
             )}
           </div>
         )}
 
+        {/* ── Options tab ── */}
         {activeTab === "options" && (
-          <div className="space-y-6">
+          <div className="space-y-8">
             <h2 className="text-lg font-bold">Generation options</h2>
+
+            {/* Preset */}
             <div>
-              <label className="mb-2 block text-xs font-medium text-gray-400">Preset</label>
-              <div className="flex gap-2">
+              <label className="mb-1 block text-xs font-medium text-gray-400">Preset</label>
+              <select
+                value={preset}
+                onChange={(e) => setPreset(e.target.value)}
+                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
+              >
                 {PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setPreset(p.id)}
-                    className={`rounded-xl border p-3 transition-all ${
-                      preset === p.id
-                        ? "border-amber-500 bg-amber-500/10"
-                        : "border-gray-700 bg-gray-800/50"
-                    }`}
-                  >
-                    <span className="text-xl">{p.icon}</span>
-                    <div className="mt-1 text-sm font-medium">{p.label}</div>
-                  </button>
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
+
+            {/* Size */}
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-400">Size</label>
               <div className="grid grid-cols-3 gap-2">
@@ -881,26 +1668,213 @@ export default function ComicPilot() {
                 ))}
               </div>
             </div>
+
+            {/* Panel count toggle */}
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-400">
-                Panels per page (1–20)
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={fixPanelNum}
-                onChange={(e) =>
-                  setFixPanelNum(
-                    Math.min(20, Math.max(1, parseInt(e.target.value, 10) || 4)),
-                  )
-                }
-                className="w-24 rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
-              />
+              <div className="mb-2 flex items-center gap-3">
+                <label className="text-xs font-medium text-gray-400">Panel count</label>
+                <PaginationToggle
+                  paginationMode={paginationMode}
+                  onToggle={setPaginationMode}
+                />
+              </div>
+              {paginationMode ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs text-gray-500">Total pages</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={pagination.totalPages}
+                      onChange={(e) =>
+                        setPagination((p) => ({
+                          ...p,
+                          totalPages: Math.max(1, parseInt(e.target.value) || 1),
+                        }))
+                      }
+                      className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-gray-500">Panels per page</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={pagination.panelsPerPage}
+                      onChange={(e) =>
+                        setPagination((p) => ({
+                          ...p,
+                          panelsPerPage: Math.min(20, Math.max(1, parseInt(e.target.value) || 4)),
+                        }))
+                      }
+                      className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">
+                    Panels per page (1–20)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={fixPanelNum}
+                    onChange={(e) =>
+                      setFixPanelNum(
+                        Math.min(20, Math.max(1, parseInt(e.target.value, 10) || 4)),
+                      )
+                    }
+                    className="w-24 rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Language */}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-400">Language</label>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Upscale */}
+            <div>
+              <label className="mb-2 block text-xs font-medium text-gray-400">Upscale</label>
+              <div className="flex gap-2">
+                {[
+                  { id: "", label: "None" },
+                  { id: "2K", label: "2K" },
+                  { id: "4K", label: "4K" },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => setUpscale(opt.id)}
+                    className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
+                      upscale === opt.id
+                        ? "border-amber-500 bg-amber-500/10 text-amber-400"
+                        : "border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-500"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Locations */}
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">
+                    Locations (comicLocations)
+                  </h3>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Background reference images for consistent locations
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    setLocations((p) => [
+                      ...p,
+                      {
+                        id: uid("loc"),
+                        name: "",
+                        imageUrl: "",
+                        imageFile: null,
+                        imagePreview: null,
+                      },
+                    ])
+                  }
+                  className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-gray-900 transition-colors hover:bg-amber-400"
+                >
+                  + Add Location
+                </button>
+              </div>
+              {locations.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-700 py-8 text-center">
+                  <div className="mb-1 text-3xl">🗺️</div>
+                  <p className="text-xs text-gray-500">No locations added</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {locations.map((loc) => (
+                    <LocationCard
+                      key={loc.id}
+                      location={loc}
+                      isUploading={uploadingLocs.has(loc.id)}
+                      onUpdate={(u) =>
+                        setLocations((p) => p.map((x) => (x.id === u.id ? u : x)))
+                      }
+                      onRemove={() =>
+                        setLocations((p) => p.filter((x) => x.id !== loc.id))
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Attachments */}
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">Attachments</h3>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Page-level reference files (style guides, scripts, etc.)
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    setAttachments((p) => [
+                      ...p,
+                      { id: uid("att"), title: "", file: null, url: "" },
+                    ])
+                  }
+                  className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-gray-900 transition-colors hover:bg-amber-400"
+                >
+                  + Add Attachment
+                </button>
+              </div>
+              {attachments.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-700 py-8 text-center">
+                  <div className="mb-1 text-3xl">📎</div>
+                  <p className="text-xs text-gray-500">No attachments added</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {attachments.map((att) => (
+                    <AttachmentItem
+                      key={att.id}
+                      attachment={att}
+                      isUploading={uploadingAtts.has(att.id)}
+                      onUpdate={(u) =>
+                        setAttachments((p) => p.map((x) => (x.id === u.id ? u : x)))
+                      }
+                      onRemove={() =>
+                        setAttachments((p) => p.filter((x) => x.id !== att.id))
+                      }
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
+        {/* ── Characters tab ── */}
         {activeTab === "characters" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -943,9 +1917,7 @@ export default function ComicPilot() {
                       if (expandedChar === c.id) setExpandedChar(null);
                     }}
                     isExpanded={expandedChar === c.id}
-                    onToggle={() =>
-                      setExpandedChar(expandedChar === c.id ? null : c.id)
-                    }
+                    onToggle={() => setExpandedChar(expandedChar === c.id ? null : c.id)}
                   />
                 ))}
               </div>
@@ -953,6 +1925,7 @@ export default function ComicPilot() {
           </div>
         )}
 
+        {/* ── Panels tab ── */}
         {activeTab === "panels" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -988,9 +1961,7 @@ export default function ComicPilot() {
                     panel={p}
                     index={idx}
                     onUpdate={(u) =>
-                      setPanelPrompts((prev) =>
-                        prev.map((x) => (x.id === u.id ? u : x)),
-                      )
+                      setPanelPrompts((prev) => prev.map((x) => (x.id === u.id ? u : x)))
                     }
                     onRemove={() =>
                       setPanelPrompts((prev) => prev.filter((x) => x.id !== p.id))
@@ -1002,15 +1973,17 @@ export default function ComicPilot() {
           </div>
         )}
 
+        {/* ── Result tab ── */}
         {activeTab === "result" && (
           <GenerationView
             comicId={comicId}
             phase={genPhase}
-            progress={result}
             error={genError}
-            panels={result?.panels}
+            allPages={allPages}
             elapsed={elapsed}
             onReset={handleReset}
+            onRegenDone={(status) => setAllPages(statusToPages(status))}
+            onContinueDone={(status) => setAllPages(statusToPages(status))}
           />
         )}
       </main>
