@@ -15,8 +15,13 @@ export async function POST(request) {
     promptUrl,
     preset = "render",
     size = "1024x1024",
-    fixPanelNum = 4,
+    fixPanelNum,
+    pagination,
     comicRoles = [],
+    comicLocations = [],
+    attachments = [],
+    language,
+    upscale,
   } = body;
 
   if (!prompt && !promptUrl) {
@@ -28,8 +33,16 @@ export async function POST(request) {
     promptUrl: promptUrl || undefined,
     preset,
     size,
-    fixPanelNum: Math.min(20, Math.max(1, parseInt(fixPanelNum, 10) || 4)),
   };
+
+  if (pagination) {
+    params.pagination = pagination;
+  } else {
+    params.fixPanelNum = Math.min(20, Math.max(1, parseInt(fixPanelNum, 10) || 4));
+  }
+
+  if (language) params.language = language;
+  if (upscale) params.upscale = upscale;
 
   if (comicRoles?.length > 0) {
     params.comicRoles = comicRoles.map((r) => ({
@@ -39,6 +52,17 @@ export async function POST(request) {
       dress: r.dress || undefined,
       image: r.image || undefined,
     }));
+  }
+
+  if (comicLocations?.length > 0) {
+    params.comicLocations = comicLocations.map((l) => ({
+      name: l.name,
+      image: l.image || undefined,
+    }));
+  }
+
+  if (attachments?.length > 0) {
+    params.attachments = attachments;
   }
 
   try {

@@ -14,8 +14,16 @@ export async function GET(_request, { params }) {
       id: result.id,
       status: result.status,
       output: result.output,
-      panels:
-        result.comics?.[0]?.panels?.map((p) => ({ assetUrl: p.assetUrl })) || [],
+      pages:
+        result.comics?.map((comic, pageIdx) => ({
+          pageIndex: pageIdx,
+          panels:
+            comic.panels?.map((p, panelIdx) => ({
+              assetUrl: p.assetUrl,
+              panelIdx,
+            })) || [],
+        })) || [],
+      panels: result.comics?.[0]?.panels?.map((p) => ({ assetUrl: p.assetUrl })) || [],
       createdAt: result.createdAt,
     });
   } catch (e) {
